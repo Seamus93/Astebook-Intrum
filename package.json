@@ -1,0 +1,14 @@
+{
+  "name": "astebook-pipeline",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^6.7.0",
+    "pdf-parse": "^2.4.4"
+  }
+}
