@@ -3,18 +3,17 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
+    "start:4000": "set PORT=4000&& node server.js",
     "ngrok": "ngrok http 4000",
-    "all": "concurrently \"npm run start\" \"npm run ngrok\""
+    "all": "concurrently \"npm run start:4000\" \"npm run ngrok\""
   },
   "dependencies": {
     "dotenv": "^17.2.3",
     "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
     "openai": "^6.7.0",
-    "pdf-img-convert": "^1.1.10",
     "pdf-parse": "^2.4.4",
-    "pdfjs-dist": "2.16.105",
-    "tesseract.js": "2.1.5"
+    "pdfjs-dist": "2.16.105"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

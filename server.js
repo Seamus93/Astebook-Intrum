@@ -1,7 +1,6 @@
 ﻿import express from "express";
 import multer from "multer";
 import dotenv from "dotenv";
-import fs from "fs";
 
 import { mergeAnnuncioProposta } from "./lib/merge_json.js";
 import { aiExtractAnnuncio, aiExtractProposta } from "./lib/ai.js";
@@ -33,6 +32,31 @@ function addDaysToISODate(isoDate, days) {
   const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
   d.setUTCDate(d.getUTCDate() + Number(days || 0));
   return d.toISOString().slice(0, 10);
+}
+
+function toISOFromITDate(val) {
+  // accetta gg/mm/aa o gg/mm/aaaa -> ISO YYYY-MM-DD
+  const m = typeof val === "string" && val.match(/^(\d{2})\/(\d{2})\/(\d{2}|\d{4})$/);
+  if (!m) return null;
+  const yy = m[3].length === 2 ? `20${m[3]}` : m[3];
+  return `${yy}-${m[2]}-${m[1]}`;
+}
+
+function toITDateFromISO(val) {
+  const m = typeof val === "string" && val.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return val;
+  return `${m[3]}/${m[2]}/${m[1].slice(-2)}`;
+}
+
+function formatMoneyIT(val) {
+  const num =
+    typeof val === "number"
+      ? val
+      : val !== null && val !== undefined
+      ? Number(String(val).replace(/[^\d.-]/g, ""))
+      : NaN;
+  if (!Number.isFinite(num)) return val ?? null;
+  return num.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function computeDataAperturaPubblicazione() {
@@ -144,7 +168,8 @@ app.post("/callAI", upload, async (req, res) => {
     }
 
     const data_apertura_pubblicazione = computeDataAperturaPubblicazione();
-    const data_termine_deposito = aiAnnuncio.data_termine_deposito || null;
+    const data_termine_deposito =
+      toISOFromITDate(aiAnnuncio.data_termine_deposito) || aiAnnuncio.data_termine_deposito || null;
     const ora_termine_deposito = aiAnnuncio.ora_termine_deposito || null;
     const data_gara = data_termine_deposito
       ? addDaysToISODate(data_termine_deposito, 2)
@@ -156,16 +181,15 @@ app.post("/callAI", upload, async (req, res) => {
       {
         file_pdf: aiAnnuncio.file_pdf,
         indirizzo: aiAnnuncio.indirizzo,
-        tipo_vendita: aiAnnuncio.tipo_vendita,
         data_vendita: aiAnnuncio.data_vendita,
         ora_vendita: aiAnnuncio.ora_vendita,
         offerta_minima: aiAnnuncio.offerta_minima,
-        superficie_mq: aiAnnuncio.superficie_mq,
-        piano_numero: aiAnnuncio.piano_numero,
-        ascensore: aiAnnuncio.ascensore,
-        stato_occupazione: aiAnnuncio.stato_occupazione,
-        categoria_macro: aiAnnuncio.categoria_macro,
-        aggiornato_il: aiAnnuncio.aggiornato_il,
+        rilancio_minimo: 1000,
+        offerta_minima_ammissibile:
+          aiAnnuncio.offerta_minima != null
+            ? Number(aiAnnuncio.offerta_minima) + 1000
+            : null,
+        stato: aiAnnuncio.stato,
         ora_gara_inizio: aiAnnuncio.ora_gara_inizio,
         ora_gara_fine: aiAnnuncio.ora_gara_fine,
         termine_richieste_visite_data: aiAnnuncio.termine_richieste_visite_data,
@@ -194,20 +218,39 @@ app.post("/callAI", upload, async (req, res) => {
       }
     );
 
-    merged.gara.data_termine_deposito =
-      merged.gara.data_termine_deposito ?? data_termine_deposito;
-    merged.gara.ora_termine_deposito =
-      merged.gara.ora_termine_deposito ?? ora_termine_deposito;
+    merged.deposito = merged.deposito || {};
+    merged.deposito.data_termine_deposito =
+      merged.deposito.data_termine_deposito ?? data_termine_deposito;
+    merged.deposito.ora_termine_deposito =
+      merged.deposito.ora_termine_deposito ?? ora_termine_deposito;
     merged.gara.data_gara = data_gara;
     merged.gara.ora_inizio = merged.gara.ora_inizio || ora_gara_inizio;
     merged.gara.ora_fine = merged.gara.ora_fine || ora_gara_fine;
     merged.data_apertura_pubblicazione = data_apertura_pubblicazione;
 
-    res.json({
-      ok: true,
-      ai: { annuncio: aiAnnuncio, proposta: aiProposta },
-      merged,
-    });
+    // Output date in formato gg/mm/aa per coerenza con prompt/standard richiesto
+    const formatDateFields = (obj, keys) => {
+      keys.forEach((k) => {
+        if (obj && obj[k]) obj[k] = toITDateFromISO(obj[k]);
+      });
+    };
+
+    formatDateFields(merged.gara, ["data", "data_gara", "data_vendita"]);
+    formatDateFields(merged.visite, ["termine_data"]);
+    formatDateFields(merged.deposito, ["data_termine_deposito"]);
+    formatDateFields(merged.redazione, ["data"]);
+    merged.data_apertura_pubblicazione = toITDateFromISO(merged.data_apertura_pubblicazione);
+
+    // Formatta importi come stringhe italiane 0.000,00
+    const formatMoneyFields = (obj, keys) => {
+      keys.forEach((k) => {
+        if (obj && obj[k] !== undefined) obj[k] = formatMoneyIT(obj[k]);
+      });
+    };
+    formatMoneyFields(merged.gara, ["offerta_minima", "offerta_minima_ammissibile", "rilancio_minimo"]);
+    formatMoneyFields(merged.deposito, ["deposito_cauzionale"]);
+
+    res.json({ ok: true, merged });
   } catch (error) {
     console.error("[callAI] error", error);
     res.status(500).json({ ok: false, error: error.message || String(error) });
