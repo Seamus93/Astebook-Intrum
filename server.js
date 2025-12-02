@@ -128,8 +128,6 @@ app.post("/callAI", upload, async (req, res) => {
       const parsedPro = await parsePdfBuffer(proBuf);
       combinedProText = parsedPro?.text || "";
     }
-    try { fs.writeFileSync("proposta_debug.txt", combinedProText || "", "utf8"); } catch {}
-
     const aiAnnuncio = await aiExtractAnnuncio({
       text: annuncioText,
       fileName: annuncioFileName,
@@ -218,4 +216,3 @@ app.post("/callAI", upload, async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server up on http://localhost:${PORT}`));
-
