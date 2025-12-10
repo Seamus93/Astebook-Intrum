@@ -12,6 +12,22 @@ Pipeline Node/Express per estrazione/merge annuncio e proposta via OpenAI. Endpo
   PORT=4000
   ```
 
+## Come installare in un nuovo VPS
+### Opzione A: Docker (consigliato, migrazione più semplice)
+- Prerequisiti: Docker + Docker Compose v2, Git.
+- Clona il repo: `git clone <url-repo> && cd <repo>`.
+- Copia l'env di esempio: `cp .env.example .env` e valorizza `OPENAI_API_KEY`; opzionale `PORT` (default 3000).
+- Build: `docker compose build`.
+- Avvio: `docker compose up -d`.
+- Verifica: `curl http://<host>:<PORT>/health` → `{ "ok": true }`.
+
+### Opzione B: senza Docker (Node)
+- Prerequisiti: Node 18+, Git.
+- `git clone <url-repo> && cd <repo>`.
+- `cp .env.example .env` e imposta le variabili.
+- `npm ci --omit=dev` per installare dipendenze prod.
+- Avvio: `PORT=3000 npm start` (o usa lo script `npm run start:4000` se preferisci).
+
 ## Avvio rapido
 - Semplice: `npm run start:4000` (o `npm start` per porta di default 3000).
 - Tunnel opzionale: `npm run all` (server su 4000 + ngrok http 4000) se vuoi un URL pubblico temporaneo.
@@ -34,3 +50,4 @@ La risposta contiene `ai.annuncio`, `ai.proposta` e `merged` con campi normalizz
 ## Note
 - Mantieni aggiornata la chiave OpenAI e verifica i limiti di costo.
 - `ngrok` è incluso come script, assicurati che il binario sia nel PATH sul server se vuoi usarlo.
+- Configurazione solo via variabili d'ambiente (.env): nessun dato legato al VPS viene salvato nel codice.

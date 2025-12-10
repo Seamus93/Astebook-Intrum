@@ -42,21 +42,82 @@ function toISOFromITDate(val) {
   return `${yy}-${m[2]}-${m[1]}`;
 }
 
-function toITDateFromISO(val) {
-  const m = typeof val === "string" && val.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return val;
-  return `${m[3]}/${m[2]}/${m[1].slice(-2)}`;
+function toItalianTextDate(val) {
+  const months = [
+    "gennaio",
+    "febbraio",
+    "marzo",
+    "aprile",
+    "maggio",
+    "giugno",
+    "luglio",
+    "agosto",
+    "settembre",
+    "ottobre",
+    "novembre",
+    "dicembre",
+  ];
+  if (!val) return val ?? null;
+  const str = String(val).trim();
+
+  // ISO YYYY-MM-DD
+  let m = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const year = Number(m[1]);
+    const month = Number(m[2]);
+    const day = Number(m[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${day} ${months[month - 1]} ${year}`;
+    }
+  }
+
+  // Italiano gg/mm/aa(aa)
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+  if (m) {
+    const day = Number(m[1]);
+    const month = Number(m[2]);
+    const year = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${day} ${months[month - 1]} ${year}`;
+    }
+  }
+
+  return str;
 }
 
 function formatMoneyIT(val) {
-  const num =
-    typeof val === "number"
-      ? val
-      : val !== null && val !== undefined
-      ? Number(String(val).replace(/[^\d.-]/g, ""))
-      : NaN;
+  const normalized = () => {
+    if (typeof val === "number") return val;
+    if (val === null || val === undefined) return NaN;
+    const s = String(val).trim();
+    const withDot = s.replace(/\./g, "").replace(/,/g, ".");
+    const digitsOnly = withDot.replace(/[^\d.-]/g, "");
+    return Number(digitsOnly);
+  };
+  const num = normalized();
   if (!Number.isFinite(num)) return val ?? null;
-  return num.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fixed = num.toFixed(2);
+  const [intPart, decPart] = fixed.split(".");
+  const withThousands = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${withThousands},${decPart}`;
+}
+
+function ensureNumberDefaults(obj, keys) {
+  keys.forEach((k) => {
+    if (obj && (obj[k] === null || obj[k] === undefined)) obj[k] = 0;
+  });
+}
+
+function replaceNullishWithEmptyString(value) {
+  if (value === null || value === undefined) return "";
+  if (Array.isArray(value)) return value.map(replaceNullishWithEmptyString);
+  if (value && typeof value === "object") {
+    Object.keys(value).forEach((k) => {
+      value[k] = replaceNullishWithEmptyString(value[k]);
+    });
+    return value;
+  }
+  return value;
 }
 
 function computeDataAperturaPubblicazione() {
@@ -166,6 +227,11 @@ app.post("/callAI", upload, async (req, res) => {
       if (!aiProposta.bic_cauzione) aiProposta.bic_cauzione = bic;
       if (!aiProposta.beneficiario_cauzione) aiProposta.beneficiario_cauzione = bank;
     }
+    // Fallback beneficiario dal testo proposta (es. "intestato a ...")
+    if (!aiProposta.beneficiario_cauzione && combinedProText) {
+      const m = combinedProText.match(/intestat[oa]\s+a\s+([^\n;,]+?)(?=\s*(iban|iban:|IBAN|Iban|;|,|\n))/i);
+      if (m?.[1]) aiProposta.beneficiario_cauzione = m[1].trim();
+    }
 
     const data_apertura_pubblicazione = computeDataAperturaPubblicazione();
     const data_termine_deposito =
@@ -228,18 +294,25 @@ app.post("/callAI", upload, async (req, res) => {
     merged.gara.ora_fine = merged.gara.ora_fine || ora_gara_fine;
     merged.data_apertura_pubblicazione = data_apertura_pubblicazione;
 
-    // Output date in formato gg/mm/aa per coerenza con prompt/standard richiesto
+    // Default numerici a 0 se mancanti
+    ensureNumberDefaults(merged.gara, ["offerta_minima", "offerta_minima_ammissibile", "rilancio_minimo"]);
+    ensureNumberDefaults(merged.deposito, ["deposito_cauzionale"]);
+    ensureNumberDefaults(merged.termini, ["irrevocabile_giorni", "rogito_entro_giorni"]);
+    ensureNumberDefaults(merged.redazione, ["anno"]);
+
+    // Output date in formato testuale italiano ("10 dicembre 2025")
     const formatDateFields = (obj, keys) => {
       keys.forEach((k) => {
-        if (obj && obj[k]) obj[k] = toITDateFromISO(obj[k]);
+        if (obj && obj[k]) obj[k] = toItalianTextDate(obj[k]);
       });
     };
 
     formatDateFields(merged.gara, ["data", "data_gara", "data_vendita"]);
+    formatDateFields(merged.asta, ["data"]);
     formatDateFields(merged.visite, ["termine_data"]);
     formatDateFields(merged.deposito, ["data_termine_deposito"]);
     formatDateFields(merged.redazione, ["data"]);
-    merged.data_apertura_pubblicazione = toITDateFromISO(merged.data_apertura_pubblicazione);
+    merged.data_apertura_pubblicazione = toItalianTextDate(merged.data_apertura_pubblicazione);
 
     // Formatta importi come stringhe italiane 0.000,00
     const formatMoneyFields = (obj, keys) => {
@@ -249,6 +322,9 @@ app.post("/callAI", upload, async (req, res) => {
     };
     formatMoneyFields(merged.gara, ["offerta_minima", "offerta_minima_ammissibile", "rilancio_minimo"]);
     formatMoneyFields(merged.deposito, ["deposito_cauzionale"]);
+
+    // Sostituisci i null residui con stringa vuota
+    replaceNullishWithEmptyString(merged);
 
     res.json({ ok: true, merged });
   } catch (error) {
