@@ -1,0 +1,11 @@
+[callAI] error Error: Manca annuncio: popola 'email_body_text' con il testo dell'annuncio.
+    at file:///C:/Users/simo-/Downloads/Astebook-Intrum-Zapier/server.js:167:13
+    at Layer.handle [as handle_request] (C:\Users\simo-\Downloads\Astebook-Intrum-Zapier\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\Users\simo-\Downloads\Astebook-Intrum-Zapier\node_modules\express\lib\router\route.js:149:13)
+    at multerMiddleware (C:\Users\simo-\Downloads\Astebook-Intrum-Zapier\node_modules\multer\lib\make-middleware.js:13:41)
+    at Layer.handle [as handle_request] (C:\Users\simo-\Downloads\Astebook-Intrum-Zapier\node_modules\express\lib\router\layer.js:95:5)
+    at next (C:\Users\simo-\Downloads\Astebook-Intrum-Zapier\node_modules\express\lib\router\route.js:149:13)
+    at Route.dispatch (C:\Users\simo-\Downloads\Astebook-Intrum-Zapier\node_modules\express\lib\router\route.js:119:3)
+    at Layer.handle [as handle_request] (C:\Users\simo-\Downloads\Astebook-Intrum-Zapier\node_modules\express\lib\router\layer.js:95:5)
+    at C:\Users\simo-\Downloads\Astebook-Intrum-Zapier\node_modules\express\lib\router\index.js:284:15
+    at Function.process_params (C:\Users\simo-\Downloads\Astebook-Intrum-Zapier\node_modules\express\lib\router\index.js:346:12)
